@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Virtual Jewels Try-On</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel&family=Poppins&display=swap" rel="stylesheet">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel&family=Poppins&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; background-color: #0b0b0b; font-family: 'Poppins', sans-serif; color: #fff; }
+    video, canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 1; }
+    #branding { position: fixed; top: 21px; left: 20px; padding: 8px 12px; border-radius: 10px; display: flex; align-items: center; z-index: 5; font-family: 'Cinzel', serif; font-size: 24px; color: #000; }
+    #branding img { width: 80px; height: auto; margin-right: 10px; }
+    .ui-buttons { position: fixed; top: 20px; right: 20px; display: flex; gap: 15px; z-index: 5; }
+    .ui-buttons button, .ui-buttons a { background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.3); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; }
+    .ui-buttons button:hover, .ui-buttons a:hover { background: rgba(255,255,255,0.4); }
+    .ui-buttons img { width: 25px; height: 25px; }
+  </style>
+</head>
+<body>
+  <div class="video-container">
+    <video id="webcam" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div id="branding">
+    <img src="logo.png" alt="Overlay Jewels Logo" class="logo-icon" />
+  </div>
+
+  <div class="ui-buttons">
+    <a id="location-btn" href="https://maps.app.goo.gl/gsTuBCVMUVk9cxYZ6" target="_blank" rel="noopener noreferrer">
+      <img src="location_icon.png" alt="Location" />
+    </a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script>
+    const videoElement = document.getElementById('webcam');
+    const canvasElement = document.getElementById('overlay');
+    const canvasCtx = canvasElement.getContext('2d');
+
+    let activeProduct = null; 
+    let smoothedFaceLandmarks = null, camera;
+    let smoothedFacePoints = {};
+
+    async function loadImage(src) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+    }
+
+    async function loadDefaultJewelry() {
+      const defaultSrc = "https://drive.google.com/thumbnail?id=1xGSNtrgSdzNQuJ3Q0gOA7BNLPBe5uyoG&sz=w1000";
+      const img = await loadImage(defaultSrc);
+      if (img) activeProduct = img;
+    }
+
+    const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+    faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.6, minTrackingConfidence:0.6 });
+    faceMesh.onResults((results) => {
+      canvasCtx.clearRect(0,0,canvasElement.width,canvasElement.height);
+      if (results.multiFaceLandmarks?.length>0) {
+        const newLandmarks = results.multiFaceLandmarks[0];
+        if (!smoothedFaceLandmarks) smoothedFaceLandmarks = newLandmarks;
+        else {
+          const factor=0.2;
+          smoothedFaceLandmarks = smoothedFaceLandmarks.map((prev,i)=>({
+            x: prev.x*(1-factor)+newLandmarks[i].x*factor,
+            y: prev.y*(1-factor)+newLandmarks[i].y*factor,
+            z: prev.z*(1-factor)+newLandmarks[i].z*factor,
+          }));
+        }
+      } else smoothedFaceLandmarks = null;
+      drawJewelry(smoothedFaceLandmarks, canvasCtx);
+    });
+
+    async function startCamera(facingMode) {
+      if (camera) camera.stop();
+      camera = new Camera(videoElement, {
+        onFrame: async () => { await faceMesh.send({ image: videoElement }); },
+        width:1280, height:720, facingMode:facingMode
+      });
+      camera.start();
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadDefaultJewelry(); 
+      startCamera('user');
+    });
+
+    videoElement.addEventListener('loadedmetadata', () => {
+      canvasElement.width = videoElement.videoWidth;
+      canvasElement.height = videoElement.videoHeight;
+    });
+
+    function smoothPoint(prev, current, factor = 0.4) {
+      if (!prev) return current;
+      return { x: prev.x*(1-factor)+current.x*factor, y: prev.y*(1-factor)+current.y*factor };
+    }
+
+    function drawJewelry(faceLandmarks, ctx) {
+      if (faceLandmarks && activeProduct) {
+        const vw = canvasElement.width;
+        const vh = canvasElement.height;
+
+        // reference distance between eyes (landmark 33 & 263)
+        const Leye = faceLandmarks[33];
+        const Reye = faceLandmarks[263];
+        const dx = (Reye.x - Leye.x) * vw;
+        const dy = (Reye.y - Leye.y) * vh;
+        const eyeDist = Math.hypot(dx, dy);
+
+        // scale earrings relative to eye distance
+        const scaleFactor = 0.4; // tweak for natural size
+        const w = eyeDist * scaleFactor;
+        const h = w * (activeProduct.height / activeProduct.width);
+
+        // ear anchor points
+        const leftEar = faceLandmarks[132], rightEar = faceLandmarks[361];
+        let leftEarPos = { x:leftEar.x*vw, y:leftEar.y*vh };
+        let rightEarPos = { x:rightEar.x*vw, y:rightEar.y*vh };
+
+        smoothedFacePoints.leftEar = smoothPoint(smoothedFacePoints.leftEar, leftEarPos);
+        smoothedFacePoints.rightEar = smoothPoint(smoothedFacePoints.rightEar, rightEarPos);
+
+        ctx.drawImage(activeProduct, smoothedFacePoints.leftEar.x-w/2, smoothedFacePoints.leftEar.y, w,h);
+        ctx.drawImage(activeProduct, smoothedFacePoints.rightEar.x-w/2, smoothedFacePoints.rightEar.y, w,h);
+      }
+    }
+  </script>
+</body>
+</html>
