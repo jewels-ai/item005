@@ -108,19 +108,16 @@
         const vw = canvasElement.width;
         const vh = canvasElement.height;
 
-        // reference distance between eyes (landmark 33 & 263)
         const Leye = faceLandmarks[33];
         const Reye = faceLandmarks[263];
         const dx = (Reye.x - Leye.x) * vw;
         const dy = (Reye.y - Leye.y) * vh;
         const eyeDist = Math.hypot(dx, dy);
 
-        // scale earrings relative to eye distance
-        const scaleFactor = 0.4; // tweak for natural size
+        const scaleFactor = 0.4;
         const w = eyeDist * scaleFactor;
         const h = w * (activeProduct.height / activeProduct.width);
 
-        // ear anchor points
         const leftEar = faceLandmarks[132], rightEar = faceLandmarks[361];
         let leftEarPos = { x:leftEar.x*vw, y:leftEar.y*vh };
         let rightEarPos = { x:rightEar.x*vw, y:rightEar.y*vh };
@@ -132,6 +129,19 @@
         ctx.drawImage(activeProduct, smoothedFacePoints.rightEar.x-w/2, smoothedFacePoints.rightEar.y, w,h);
       }
     }
+
+    /* 🔒 Disable right-click & developer shortcuts */
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    document.addEventListener('keydown', (e) => {
+      if (
+        e.key === "F12" || 
+        (e.ctrlKey && (e.key === "U" || e.key === "I" || e.key === "J")) || 
+        (e.ctrlKey && e.shiftKey && e.key === "C")
+      ) {
+        e.preventDefault();
+      }
+    });
   </script>
 </body>
 </html>
