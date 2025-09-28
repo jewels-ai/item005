@@ -24,9 +24,7 @@
     <canvas id="overlay"></canvas>
   </div>
 
-  <div id="branding">
-    <img src="logo.png" alt="Overlay Jewels Logo" class="logo-icon" />
-  </div>
+  
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -109,7 +107,7 @@
         const dy = (Reye.y - Leye.y) * vh;
         const eyeDist = Math.hypot(dx, dy);
 
-        const scaleFactor = 0.4;
+        const scaleFactor = 0.7;
         const w = eyeDist * scaleFactor;
         const h = w * (activeProduct.height / activeProduct.width);
 
